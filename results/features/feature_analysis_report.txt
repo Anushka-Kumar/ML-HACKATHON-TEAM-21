@@ -1,0 +1,62 @@
+PATHSNAP - FEATURE ANALYSIS REPORT
+
+DATASET SUMMARY
+Training trips: 80
+GPS observations: 208417
+Candidate rows: 1042085
+Candidates per observation: 5
+
+DISTANCE ANALYSIS
+Mean: 42.80 metres
+Median: 15.91 metres
+75th percentile: 48.26 metres
+90th percentile: 109.32 metres
+95th percentile: 145.93 metres
+99th percentile: 380.63 metres
+Maximum: 1455.66 metres
+
+HEADING ANALYSIS
+Mean heading difference: 87.57 degrees
+Median heading difference: 85.16 degrees
+Missing heading values: 6480
+
+DATA QUALITY
+Duplicate candidate records: 0
+Observations with five candidates: 208417
+Observations with fewer than five candidates: 0
+
+FEATURE SELECTION - PRELIMINARY
+
+Retain:
+- distance_to_arc_m
+- heading_difference_deg
+
+Evaluate:
+- gps_heading_deg
+- road_heading_deg
+- candidate_rank
+
+Metadata:
+- trip_id
+- observation_id
+- gps_timestamp
+- candidate_arc_id
+
+Ground-truth labels have not been generated.
+
+IMPORTANT FINDINGS
+1. Candidate distances have a wide distribution.
+2. Some candidates are more than 1 km from GPS observations.
+3. The candidate-generation method uses the 30 nearest
+   segment midpoints before selecting five candidates.
+4. Candidate search quality requires further validation.
+5. Reference-route membership is not an observation-level
+   ground-truth label.
+
+CONCLUSION
+Initial candidate feature extraction and exploratory
+feature analysis have been completed.
+
+Final feature selection and model-ready dataset
+validation remain subject to candidate-quality checks
+and coordination with the HMM implementation.

@@ -1,0 +1,93 @@
+PATHSNAP - DATASET VALIDATION FINDINGS
+
+1. DATASET INVENTORY
+Training trips: 80
+Student testing trips: 10
+Sample evaluator trips: Not yet inspected
+
+2. FILE STRUCTURE
+.track: 3 numerical columns
+.nodes: 2 numerical columns
+.arcs: 2 integer columns
+.route: 1 integer column
+
+3. DATA QUALITY
+No non-finite values found in inspected samples.
+Track observation indices are strictly increasing.
+A small number of duplicate node coordinates and arc rows were found.
+No duplicate route values were found in inspected samples.
+
+4. ARC RELATIONSHIP INVESTIGATION
+The first arc column contains values within the node index range.
+The second arc column also contains values within the node index range.
+The exact meaning of both columns requires confirmation.
+
+5. ROUTE RELATIONSHIP INVESTIGATION
+Some route values do not match values in either arc column.
+Direct route-to-arc mapping has not been established.
+Route identifiers require further investigation.
+
+6. NEXT STEPS
+Confirm file semantics using official dataset documentation.
+Inspect all trips for consistency.
+Establish correct node-arc-route relationships.
+Only then implement preprocessing and feature engineering.
+
+
+7. EXTREME GPS TIMESTAMP GAP INVESTIGATION
+
+Trip 00000078:
+- Timestamp gap: 52,810 seconds.
+- Spatial displacement: 2.523 metres.
+- Implied average speed: 0.000172 km/h.
+
+Trip 00000090:
+- Timestamp gap: 153,064 seconds.
+- Spatial displacement: 3.300 metres.
+- Implied average speed: 0.000078 km/h.
+
+Observation:
+Both trips contain extremely large temporal gaps with
+very small geographical displacement.
+
+Possible explanations include recording interruptions
+or prolonged stationary periods. The exact cause cannot
+be established from the available observations.
+
+Decision:
+Preserve original GPS records.
+Do not automatically interpolate or delete observations.
+Investigate timestamp gaps when designing preprocessing
+and movement-related features.
+
+8. DISCONNECTED ROUTE TRANSITIONS
+
+13 disconnected consecutive route transitions were
+identified across 10 training trips.
+
+Geographical distances between the corresponding
+end and start nodes ranged from 10.62 metres
+to 595.81 metres.
+
+These transitions are documented as potential
+reference-route discontinuities. No route corrections
+have been applied.
+
+9. GPS TRAJECTORY AND ROAD NETWORK VISUALISATION
+
+Trip inspected: 00000003
+
+- GPS observations: 821
+- Road-network nodes: 9,138
+- Road-network arcs: 18,028
+- Reference-route arcs: 79
+
+Observations:
+- GPS trajectory follows a clear geographical path.
+- Reference route overlaps substantially with the GPS trajectory.
+- The trajectory appears to follow the supplied road network.
+- No obvious coordinate-order issues were observed.
+
+The visualisation is an exploratory inspection.
+No map-matching accuracy conclusion is drawn
+from this plot alone.

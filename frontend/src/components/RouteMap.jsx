@@ -1,9 +1,40 @@
 
-import { MapContainer, TileLayer, ZoomControl } from "react-leaflet";
+import { useEffect } from "react";
+import {
+  MapContainer,
+  Polyline,
+  TileLayer,
+  useMap,
+  ZoomControl,
+} from "react-leaflet";
 import { Layers, MapPin, Route } from "lucide-react";
 import "leaflet/dist/leaflet.css";
 
-function RouteMap() {
+function FitRoute({ positions }) {
+  const map = useMap();
+
+  useEffect(() => {
+    if (positions.length > 0) {
+      map.fitBounds(positions, { padding: [30, 30] });
+    }
+  }, [map, positions]);
+
+  return null;
+}
+
+function RouteMap({ predictions = [] }) {
+  const observationPositions = predictions.map((item) => [
+    item.latitude,
+    item.longitude,
+  ]);
+  const predictedPositions = predictions
+    .filter((item) => item.selected_arc_id !== null)
+    .map((item) => [item.latitude, item.longitude]);
+  const positions =
+    observationPositions.length > 0
+      ? observationPositions
+      : [[12.9716, 77.5946]];
+
   return (
     <div className="real-map-container">
       <div className="real-map-toolbar">
@@ -20,7 +51,7 @@ function RouteMap() {
 
       <div className="leaflet-map-wrapper">
         <MapContainer
-          center={[12.9716, 77.5946]}
+          center={positions[0]}
           zoom={13}
           zoomControl={false}
           scrollWheelZoom={true}
@@ -31,9 +62,23 @@ function RouteMap() {
             url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
           />
           <ZoomControl position="bottomright" />
+          {observationPositions.length > 0 && (
+            <Polyline
+              positions={observationPositions}
+              pathOptions={{ color: "#2563eb", weight: 4, opacity: 0.75 }}
+            />
+          )}
+          {predictedPositions.length > 0 && (
+            <Polyline
+              positions={predictedPositions}
+              pathOptions={{ color: "#16a34a", weight: 5, opacity: 0.95 }}
+            />
+          )}
+          <FitRoute positions={observationPositions} />
         </MapContainer>
 
-        <div className="map-empty-overlay">
+        {observationPositions.length === 0 && (
+          <div className="map-empty-overlay">
           <div className="map-empty-card">
             <div className="map-center-icon">
               <Route size={25} />
@@ -50,7 +95,8 @@ function RouteMap() {
               Awaiting actual trip coordinates
             </span>
           </div>
-        </div>
+          </div>
+        )}
       </div>
 
       <div className="real-map-footer">
@@ -63,7 +109,9 @@ function RouteMap() {
           Predicted route
         </span>
         <span className="map-data-note">
-          No route data loaded
+          {observationPositions.length > 0
+            ? `${observationPositions.length} observations loaded`
+            : "No route data loaded"}
         </span>
       </div>
     </div>

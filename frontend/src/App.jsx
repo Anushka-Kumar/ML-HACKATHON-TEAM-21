@@ -1,5 +1,5 @@
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import {
   Activity,
@@ -23,12 +23,8 @@ import {
   XCircle,
 } from "lucide-react";
 import RouteMap from "./components/RouteMap";
+import { getHealth, getTrips, predictTrip } from "./api";
 import "./App.css";
-
-const demoTrips = Array.from({ length: 10 }, (_, index) => ({
-  id: `DEMO-${String(index + 1).padStart(2, "0")}`,
-  name: `Evaluation Trip ${String(index + 1).padStart(2, "0")}`,
-}));
 
 const navigationItems = [
   { id: "overview", label: "Overview", icon: Layers3 },
@@ -42,10 +38,30 @@ function App() {
   const [selectedTrip, setSelectedTrip] = useState("");
   const [requestStatus, setRequestStatus] = useState("idle");
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [trips, setTrips] = useState([]);
+  const [health, setHealth] = useState(null);
+  const [prediction, setPrediction] = useState(null);
+  const [errorMessage, setErrorMessage] = useState("");
+  const [inferenceMs, setInferenceMs] = useState(null);
 
-  const selectedTripData = demoTrips.find(
-    (trip) => trip.id === selectedTrip
-  );
+  useEffect(() => {
+    Promise.all([getTrips(), getHealth()])
+      .then(([tripData, healthData]) => {
+        setTrips(
+          tripData.trips.map((id) => ({
+            id,
+            name: `Evaluation Trip ${id}`,
+          }))
+        );
+        setHealth(healthData);
+      })
+      .catch((error) => {
+        setErrorMessage(error.message);
+        setHealth({ status: "error", model_ready: false });
+      });
+  }, []);
+
+  const selectedTripData = trips.find((trip) => trip.id === selectedTrip);
 
   const navigate = (page) => {
     setActivePage(page);
@@ -55,13 +71,28 @@ function App() {
   const handleTripChange = (event) => {
     setSelectedTrip(event.target.value);
     setRequestStatus("idle");
+    setPrediction(null);
+    setErrorMessage("");
+    setInferenceMs(null);
   };
 
-  const handleReconstruct = () => {
+  const handleReconstruct = async () => {
     if (!selectedTrip) return;
 
-    // UI-only action. No backend request is made yet.
     setRequestStatus("pending");
+    setErrorMessage("");
+    setPrediction(null);
+    const startedAt = performance.now();
+
+    try {
+      const result = await predictTrip(selectedTrip);
+      setPrediction(result);
+      setInferenceMs(Math.round(performance.now() - startedAt));
+      setRequestStatus("success");
+    } catch (error) {
+      setErrorMessage(error.message);
+      setRequestStatus("error");
+    }
   };
 
   const pageTitles = {
@@ -217,35 +248,51 @@ function App() {
                 selectedTrip={selectedTrip}
                 selectedTripData={selectedTripData}
                 requestStatus={requestStatus}
+                trips={trips}
+                errorMessage={errorMessage}
                 onTripChange={handleTripChange}
                 onReconstruct={handleReconstruct}
               />
 
-              <RouteVisualization />
+              <RouteVisualization predictions={prediction?.predictions} />
 
               <div className="bottom-grid">
                 <InfoCard
                   icon={<Activity size={20} />}
                   color="blue"
                   label="Prediction status"
-                  value="Not started"
-                  description="Waiting for trip selection"
+                  value={
+                    requestStatus === "success"
+                      ? "Complete"
+                      : requestStatus === "pending"
+                        ? "Running"
+                        : "Not started"
+                  }
+                  description={
+                    prediction
+                      ? `${prediction.predictions.length} observations`
+                      : "Waiting for trip selection"
+                  }
                 />
 
                 <InfoCard
                   icon={<Clock3 size={20} />}
                   color="purple"
                   label="Inference time"
-                  value="—"
-                  description="Available after prediction"
+                  value={inferenceMs === null ? "—" : `${inferenceMs} ms`}
+                  description="Browser round-trip time"
                 />
 
                 <InfoCard
                   icon={<Wifi size={20} />}
                   color="green"
                   label="Backend connection"
-                  value="Not connected"
-                  description="Integration pending"
+                  value={health?.status === "ok" ? "Connected" : health ? "Unavailable" : "Checking"}
+                  description={
+                    health?.model_ready
+                      ? "Model ready"
+                      : "Model may require integration"
+                  }
                 />
               </div>
             </>
@@ -263,6 +310,8 @@ function App() {
                 selectedTrip={selectedTrip}
                 selectedTripData={selectedTripData}
                 requestStatus={requestStatus}
+                trips={trips}
+                errorMessage={errorMessage}
                 onTripChange={handleTripChange}
                 onReconstruct={handleReconstruct}
               />
@@ -271,16 +320,16 @@ function App() {
                 <div>
                   <h2>Available trip previews</h2>
                   <p>
-                    These are temporary interface placeholders.
+                    Trips are loaded directly from the backend.
                   </p>
                 </div>
                 <span className="session-tag">
-                  10 demo entries
+                  {trips.length} available {trips.length === 1 ? "trip" : "trips"}
                 </span>
               </div>
 
               <div className="trip-list">
-                {demoTrips.map((trip, index) => (
+                {trips.map((trip, index) => (
                   <button
                     key={trip.id}
                     className={`trip-list-item ${
@@ -297,7 +346,7 @@ function App() {
 
                     <div className="trip-list-info">
                       <strong>{trip.name}</strong>
-                      <span>{trip.id} · Demo placeholder</span>
+                      <span>{trip.id} · Backend dataset trip</span>
                     </div>
 
                     {selectedTrip === trip.id ? (
@@ -335,7 +384,7 @@ function App() {
                 </div>
               </div>
 
-              <RouteVisualization />
+              <RouteVisualization predictions={prediction?.predictions} />
             </>
           )}
 
@@ -347,17 +396,22 @@ function App() {
                 description="Review route reconstruction and model performance."
               />
 
-              <div className="results-empty">
+              <div className={prediction ? "results-empty results-ready" : "results-empty"}>
                 <div className="results-empty-icon">
                   <Activity size={30} />
                 </div>
 
-                <h2>Evaluation results will appear here</h2>
+                <h2>
+                  {prediction
+                    ? `Results for ${prediction.trip_id}`
+                    : "Evaluation results will appear here"}
+                </h2>
 
                 <p>
-                  Actual metrics will be displayed after the backend
-                  returns the model predictions and evaluation results.
-                  No demonstration scores are being presented as real results.
+                  {prediction?.evaluation?.status === "available"
+                    ? "The backend returned observation-level evaluation metrics."
+                    : prediction?.evaluation?.reason ||
+                      "Actual metrics will be displayed after the backend returns model predictions and evaluation results."}
                 </p>
 
                 <button
@@ -374,24 +428,32 @@ function App() {
                   icon={<Activity size={20} />}
                   color="blue"
                   label="Top-1 accuracy"
-                  value="—"
-                  description="Awaiting evaluation"
+                  value={
+                    prediction?.evaluation?.classifier_top1?.pointwise_accuracy != null
+                      ? `${(prediction.evaluation.classifier_top1.pointwise_accuracy * 100).toFixed(1)}%`
+                      : "—"
+                  }
+                  description="Classifier pointwise accuracy"
                 />
 
                 <InfoCard
                   icon={<GitBranch size={20} />}
                   color="purple"
                   label="Route continuity"
-                  value="—"
-                  description="Awaiting evaluation"
+                  value={
+                    prediction?.evaluation?.viterbi?.route_continuity != null
+                      ? `${(prediction.evaluation.viterbi.route_continuity * 100).toFixed(1)}%`
+                      : "—"
+                  }
+                  description="Viterbi route continuity"
                 />
 
                 <InfoCard
                   icon={<Clock3 size={20} />}
                   color="green"
                   label="Inference time"
-                  value="—"
-                  description="Awaiting evaluation"
+                  value={inferenceMs === null ? "—" : `${inferenceMs} ms`}
+                  description="Browser round-trip time"
                 />
               </div>
             </>
@@ -427,6 +489,8 @@ function TripSelector({
   selectedTrip,
   selectedTripData,
   requestStatus,
+  trips,
+  errorMessage,
   onTripChange,
   onReconstruct,
 }) {
@@ -439,7 +503,7 @@ function TripSelector({
 
         <div>
           <h3>Select an evaluation trip</h3>
-          <p>Choose one of the ten reserved evaluation trips.</p>
+          <p>Choose an evaluation trip loaded from the backend dataset.</p>
         </div>
       </div>
 
@@ -450,7 +514,7 @@ function TripSelector({
           <select value={selectedTrip} onChange={onTripChange}>
             <option value="">Choose an evaluation trip</option>
 
-            {demoTrips.map((trip) => (
+            {trips.map((trip) => (
               <option key={trip.id} value={trip.id}>
                 {trip.name} ({trip.id})
               </option>
@@ -475,21 +539,34 @@ function TripSelector({
         <Activity size={16} />
 
         {selectedTripData
-          ? `Selected: ${selectedTripData.name}. Demo ID only; API integration is pending.`
+          ? `Selected: ${selectedTripData.name} (${selectedTripData.id}).`
           : "Select a trip to prepare a reconstruction request."}
       </div>
 
       {requestStatus === "pending" && (
         <div className="pending-message">
           <Clock3 size={17} />
-          Trip selected successfully. Backend integration is pending;
-          no prediction has been requested.
+          Requesting route reconstruction from the backend...
+        </div>
+      )}
+
+      {requestStatus === "success" && (
+        <div className="pending-message">
+          <CheckCircle2 size={17} />
+          Prediction returned successfully.
+        </div>
+      )}
+
+      {requestStatus === "error" && (
+        <div className="pending-message">
+          <XCircle size={17} />
+          {errorMessage || "The prediction request failed."}
         </div>
       )}
     </section>
   );
 }
-function RouteVisualization() {
+function RouteVisualization({ predictions = [] }) {
   return (
     <>
       <div className="section-heading map-heading">
@@ -501,12 +578,12 @@ function RouteVisualization() {
         </div>
 
         <div className="map-label">
-          <span className="status-dot muted"></span>
-          Awaiting prediction
+          <span className={`status-dot ${predictions.length ? "" : "muted"}`}></span>
+          {predictions.length ? `${predictions.length} observations loaded` : "Awaiting prediction"}
         </div>
       </div>
 
-      <RouteMap />
+      <RouteMap predictions={predictions} />
     </>
   );
 }

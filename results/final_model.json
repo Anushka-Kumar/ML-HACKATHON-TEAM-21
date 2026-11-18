@@ -1,0 +1,14 @@
+{
+  "name": "RandomForest",
+  "variant": "tuned",
+  "params": {
+    "n_estimators": 200,
+    "max_depth": 12,
+    "min_samples_leaf": 1,
+    "max_features": "sqrt"
+  },
+  "model_path": "models/RandomForest_tuned.joblib",
+  "scores_path": "results/scores_student_test_RandomForest_tuned.csv",
+  "rule": "tuned only if CV Top-1 of best trial > CV Top-1 of default trial",
+  "cv_top1": 0.8374332404502164
+}

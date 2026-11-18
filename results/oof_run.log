@@ -1,0 +1,9 @@
+OOF scores with RandomForest (tuned) params={'n_estimators': 200, 'max_depth': 12, 'min_samples_leaf': 1, 'max_features': 'sqrt'}
+[load_train] max_obs/trip=150: kept 57030 of 60000 rows after noise filter
+  fold 0: fitted on 64 trips, scored 16 held-out trips (275645 rows)
+  fold 1: fitted on 64 trips, scored 16 held-out trips (171990 rows)
+  fold 2: fitted on 64 trips, scored 16 held-out trips (185075 rows)
+  fold 3: fitted on 64 trips, scored 16 held-out trips (254365 rows)
+  fold 4: fitted on 64 trips, scored 16 held-out trips (155010 rows)
+Wrote results/oof_scores_train.parquet
+oof exit 0

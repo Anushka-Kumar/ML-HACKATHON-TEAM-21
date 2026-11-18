@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PathSnap Map Matching</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<style>
+  body { margin: 0; font-family: system-ui, sans-serif; display: flex; height: 100vh; }
+  #side { width: 340px; padding: 14px; overflow-y: auto; border-right: 1px solid #ccc; box-sizing: border-box; }
+  #map { flex: 1; }
+  h1 { font-size: 1.2rem; margin: 0 0 10px; }
+  label { display: block; font-size: .8rem; margin: 10px 0 3px; color: #444; }
+  input, select, button { width: 100%; padding: 7px; box-sizing: border-box; font-size: .9rem; }
+  button { margin-top: 8px; cursor: pointer; }
+  table { width: 100%; border-collapse: collapse; font-size: .85rem; margin-top: 8px; }
+  td, th { border-bottom: 1px solid #ddd; padding: 4px; text-align: right; }
+  th:first-child, td:first-child { text-align: left; }
+  #status { font-size: .85rem; margin-top: 10px; min-height: 1.2em; }
+  .legend i { display: inline-block; width: 24px; height: 4px; margin-right: 6px; vertical-align: middle; }
+  .err { color: #b00020; }
+</style>
+</head>
+<body>
+<div id="side">
+  <h1>PathSnap</h1>
+  <label for="api">API address (Laptop 1)</label>
+  <input id="api" value="http://localhost:8000">
+  <button id="load">Load trips</button>
+  <label for="trip">Evaluation trip</label>
+  <select id="trip"></select>
+  <button id="run">Run map matching</button>
+  <div id="status"></div>
+  <div id="results"></div>
+  <div class="legend" style="margin-top:14px;font-size:.85rem">
+    <div><i style="background:#2a6f97"></i>Reference route</div>
+    <div><i style="background:#d62828"></i>Predicted route</div>
+    <div><i style="background:#999"></i>Road network (candidate arcs)</div>
+    <div><i style="background:#222;height:8px;width:8px;border-radius:50%"></i>GPS points</div>
+  </div>
+</div>
+<div id="map"></div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+const map = L.map("map", { preferCanvas: true }).setView([20, 0], 2);
+const osm = L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19, attribution: "&copy; OpenStreetMap contributors" }).addTo(map);
+const layers = { network: L.layerGroup(), gps: L.layerGroup(), reference: L.layerGroup(), predicted: L.layerGroup() };
+Object.values(layers).forEach(l => l.addTo(map));
+L.control.layers({ "OpenStreetMap": osm }, {
+  "Road network": layers.network, "GPS points": layers.gps,
+  "Reference route": layers.reference, "Predicted route": layers.predicted }).addTo(map);
+
+const $ = id => document.getElementById(id);
+$("api").value = localStorage.getItem("pathsnap_api") || $("api").value;   // remember the address between visits
+const api = () => $("api").value.replace(/\/+$/, "");
+const setStatus = (t, err) => { $("status").textContent = t; $("status").className = err ? "err" : ""; };
+
+async function loadTrips() {
+  localStorage.setItem("pathsnap_api", $("api").value);
+  setStatus("Loading trips...");
+  try {
+    const r = await fetch(api() + "/trips");
+    const j = await r.json();
+    $("trip").innerHTML = j.trips.map(t => `<option>${t}</option>`).join("");
+    setStatus(`${j.trips.length} trips available`);
+  } catch (e) { setStatus("Cannot reach the API: " + e, true); }
+}
+
+function draw(j) {
+  Object.values(layers).forEach(l => l.clearLayers());
+  j.network.forEach(s => L.polyline(s, { color: "#999", weight: 1.5, opacity: .7 }).addTo(layers.network));
+  (j.reference || []).forEach(s => L.polyline(s, { color: "#2a6f97", weight: 6, opacity: .6 }).addTo(layers.reference));
+  j.predicted.forEach(s => L.polyline(s, { color: "#d62828", weight: 3 }).addTo(layers.predicted));
+  j.gps.forEach(p => L.circleMarker(p, { radius: 2, color: "#222", weight: 0, fillOpacity: .8 }).addTo(layers.gps));
+  const pts = j.gps.length ? j.gps : j.predicted.flat();
+  if (pts.length) map.fitBounds(L.latLngBounds(pts), { padding: [20, 20] });
+}
+
+function showMetrics(j) {
+  const ev = j.evaluation;
+  let h = `<div style="margin-top:8px">Model: <b>${j.model}</b><br>GPS points: ${j.n_gps_points}<br>`
+        + `Pipeline time: ${j.timing.total_s.toFixed(1)} s</div>`;
+  if (ev) {
+    const f = x => (100 * x).toFixed(2) + "%";
+    h += `<table><tr><th></th><th>Classifier</th><th>+ HMM</th></tr>`
+       + `<tr><td>Top-1 accuracy</td><td>${f(ev.clf.top1)}</td><td>${f(ev.hmm.top1)}</td></tr>`
+       + `<tr><td>Route continuity</td><td>${f(ev.clf.route_continuity)}</td><td>${f(ev.hmm.route_continuity)}</td></tr>`
+       + `<tr><td>Route precision</td><td>${f(ev.clf.route_precision)}</td><td>${f(ev.hmm.route_precision)}</td></tr>`
+       + `<tr><td>Route recall</td><td>${f(ev.clf.route_recall)}</td><td>${f(ev.hmm.route_recall)}</td></tr>`
+       + `<tr><td>Route F1</td><td>${f(ev.clf.route_f1)}</td><td>${f(ev.hmm.route_f1)}</td></tr></table>`
+       + `<div style="font-size:.8rem;margin-top:6px">Candidate miss rate: ${f(ev.candidate_miss_rate)}</div>`;
+  } else { h += "<div>No reference route on the server: no accuracy computed.</div>"; }
+  $("results").innerHTML = h;
+}
+
+async function run() {
+  const id = $("trip").value;
+  if (!id) { setStatus("Load and select a trip first", true); return; }
+  setStatus(`Running pipeline for trip ${id} on the server...`);
+  $("run").disabled = true;
+  try {
+    const r = await fetch(api() + "/predict", { method: "POST", headers: { "Content-Type": "application/json" },
+                                                body: JSON.stringify({ trip_id: id }) });
+    if (!r.ok) throw new Error((await r.json()).detail || r.statusText);
+    const j = await r.json();
+    draw(j); showMetrics(j); setStatus(`Done: trip ${id}`);
+  } catch (e) { setStatus("Error: " + e.message, true); }
+  $("run").disabled = false;
+}
+
+$("load").onclick = loadTrips;
+$("run").onclick = run;
+loadTrips();
+</script>
+</body>
+</html>

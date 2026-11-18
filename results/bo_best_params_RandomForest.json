@@ -1,0 +1,14 @@
+{
+  "model": "RandomForest",
+  "best_params": {
+    "n_estimators": 200,
+    "max_depth": 12,
+    "min_samples_leaf": 1,
+    "max_features": "sqrt"
+  },
+  "best_cv_top1": 0.8374332404502164,
+  "default_cv_top1": 0.8365738066369497,
+  "n_trials": 30,
+  "search_obs_per_trip": 150,
+  "seed": 42
+}

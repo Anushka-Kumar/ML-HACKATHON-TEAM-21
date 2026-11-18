@@ -1,0 +1,51 @@
+{
+  "seed": 42,
+  "features": [
+    "distance_to_arc_m",
+    "heading_difference_deg",
+    "candidate_rank",
+    "gps_speed_mps",
+    "gps_acceleration_mps2",
+    "gps_turn_angle_deg",
+    "road_segment_length_m",
+    "network_connectivity"
+  ],
+  "configs": {
+    "RandomForest": {
+      "bootstrap": "True",
+      "ccp_alpha": "0.0",
+      "class_weight": "None",
+      "criterion": "gini",
+      "max_depth": "16",
+      "max_features": "sqrt",
+      "max_leaf_nodes": "None",
+      "max_samples": "None",
+      "min_impurity_decrease": "0.0",
+      "min_samples_leaf": "5",
+      "min_samples_split": "2",
+      "min_weight_fraction_leaf": "0.0",
+      "monotonic_cst": "None",
+      "n_estimators": "200",
+      "n_jobs": "-1",
+      "oob_score": "False",
+      "random_state": "42",
+      "verbose": "0",
+      "warm_start": "False"
+    },
+    "KNN": {
+      "memory": "None",
+      "steps": "[('simpleimputer', SimpleImputer(add_indicator=True, strategy='median')), ('standardscaler', StandardScaler()), ('kneighborsclassifier', KNeighborsClassifier(n_jobs=-1, n_neighbors=25, weights='distance'))]",
+      "transform_input": "None",
+      "verbose": "False"
+    },
+    "LogisticRegression": {
+      "memory": "None",
+      "steps": "[('simpleimputer', SimpleImputer(add_indicator=True, strategy='median')), ('standardscaler', StandardScaler()), ('logisticregression', LogisticRegression(max_iter=2000, random_state=42))]",
+      "transform_input": "None",
+      "verbose": "False"
+    }
+  },
+  "group_cv": "GroupKFold(5) on trip id",
+  "max_obs_per_train_trip": 150,
+  "candidate_radius_m": 100
+}

@@ -1,0 +1,7 @@
+{
+  "lam": 2.0,
+  "disc_penalty": 10.0,
+  "max_hops": 4,
+  "gap_s": 30.0,
+  "emission_power": 0.5
+}

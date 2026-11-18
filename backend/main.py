@@ -51,7 +51,8 @@ async def log_requests(request: Request, call_next):
 
 @app.get("/health")
 def health():
-    return dict(status="ok", model_ready=True, model=pipe.model_name, trips_folder=EVAL_PART)
+    return dict(status="ok", model_ready=pipe.model is not None,
+                model=pipe.model_name, trips_folder=EVAL_PART)
 
 
 @app.get("/trips")
@@ -69,9 +70,15 @@ def _run(trip_id: str):
 
 @app.post("/trips/{trip_id}/predict")          # used by the React frontend (frontend/src/api.js)
 def predict_trip(trip_id: str):
-    return _run(trip_id)
+    try:
+        return _run(trip_id)
+    except RuntimeError as error:
+        raise HTTPException(status_code=503, detail=str(error)) from error
 
 
 @app.post("/predict")                          # same thing with the id in the JSON body
 def predict(req: PredictRequest):
-    return _run(req.trip_id)
+    try:
+        return _run(req.trip_id)
+    except RuntimeError as error:
+        raise HTTPException(status_code=503, detail=str(error)) from error

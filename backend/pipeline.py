@@ -30,12 +30,27 @@ SHOW_REFERENCE = os.environ.get("SHOW_REFERENCE", "1") == "1"  # return referenc
 
 class Pipeline:
     def __init__(self):
-        fm = json.load(open(os.path.join(REPO, "results", "final_model.json")))
-        bundle = joblib.load(os.path.join(REPO, fm["model_path"]))
-        self.model, self.features = bundle["model"], bundle["features"]
+        fm_path = os.path.join(REPO, "results", "final_model.json")
+        fm = json.load(open(fm_path)) if os.path.exists(fm_path) else None
+        model_path = os.path.join(REPO, fm["model_path"]) if fm else None
+        self.model = None
+        self.features = None
+        self.model_name = "Model not configured"
+        self.model_error = None
+        if model_path and os.path.exists(model_path):
+            try:
+                bundle = joblib.load(model_path)
+                self.model = bundle["model"]
+                self.features = bundle["features"]
+                self.model_name = f"{fm['name']} ({fm['variant']})"
+            except (OSError, KeyError, ValueError) as error:
+                self.model_error = str(error)
+        elif model_path:
+            self.model_error = f"Model bundle not found: {model_path}"
+        else:
+            self.model_error = "results/final_model.json not found"
         hp = os.path.join(REPO, "results", "hmm_best_params.json")
         self.hmm_params = json.load(open(hp)) if os.path.exists(hp) else DEFAULT_PARAMS
-        self.model_name = f"{fm['name']} ({fm['variant']})"
         log.info("loaded model %s | HMM params %s | trips folder %s/%s", self.model_name, self.hmm_params, D.ROOT, EVAL_PART)
 
     def trips(self):
@@ -43,6 +58,11 @@ class Pipeline:
 
     # ------------------------------------------------------------------ prediction (no ground truth)
     def predict(self, trip_id):
+        if self.model is None:
+            raise RuntimeError(
+                "Production model is not available. "
+                f"{self.model_error or 'Configure the model bundle.'}"
+            )
         t0 = time.perf_counter()
         base = f"{D.ROOT}/{EVAL_PART}/{trip_id}/{trip_id}"
         track = np.loadtxt(base + ".track")
